@@ -1,0 +1,336 @@
+{
+  "name": "每日 RSS 自動改寫與社群發布",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a6482e26-f0a3-4f83-8751-80be239120be",
+      "name": "每天早上 9 點",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://example.com/rss1",
+        "options": {}
+      },
+      "id": "e50d8d6e-9ff3-4bbf-bc42-d65ba439069e",
+      "name": "RSS 來源 1",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://example.com/rss2",
+        "options": {}
+      },
+      "id": "a6778d09-fddb-420f-bcda-dc957a49a50e",
+      "name": "RSS 來源 2",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://example.com/rss3",
+        "options": {}
+      },
+      "id": "72a343ae-4bb0-42eb-8409-4d1df292e3ee",
+      "name": "RSS 來源 3",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "dateTime": [
+            {
+              "value1": "={{$json.isoDate}}",
+              "value2": "={{new Date(new Date().getTime() - 24 * 60 * 60 * 1000).toISOString()}}"
+            }
+          ]
+        }
+      },
+      "id": "3cbb99c8-6190-42e7-99f3-a04d495236c2",
+      "name": "過濾 24 小時內新文章",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "lookup",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        }
+      },
+      "id": "ff738f7a-ece0-4122-9ec5-2f71c1e5d64b",
+      "name": "檢查 Google Sheets 是否重複",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        64,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.URL ? true : false}}"
+            }
+          ]
+        }
+      },
+      "id": "58a935fb-a8fb-4a1e-9e94-b3d70d645ce4",
+      "name": "排除已發布文章",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [
+        256,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {},
+        "requestOptions": {}
+      },
+      "id": "80e75c42-c386-466b-b32c-1c79df3ebe7f",
+      "name": "AI 改寫風格",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        464,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{$json.message.content}}",
+        "additionalFields": {}
+      },
+      "id": "bfccdc75-c54b-43cb-bc5b-9049fa260886",
+      "name": "發布到 Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        704,
+        -64
+      ],
+      "webhookId": "a2bcc58a-0950-427b-abf5-380c1ab93798"
+    },
+    {
+      "parameters": {
+        "text": "={{$node[\"AI 改寫風格\"].json.message.content}}",
+        "additionalFields": {}
+      },
+      "id": "ed11809f-d088-46e6-9037-cbad5eb3c7ee",
+      "name": "發布到 X (Twitter)",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        704,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{$node[\"AI 改寫風格\"].json.message.content}}"
+      },
+      "id": "b21ef6e9-3e93-459e-8db3-4c31a3aeba8a",
+      "name": "發布到 Facebook",
+      "type": "n8n-nodes-base.facebookPages",
+      "typeVersion": 1,
+      "position": [
+        704,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title": "={{$node[\"排除已發布文章\"].json.title}}",
+            "URL": "={{$node[\"排除已發布文章\"].json.link}}",
+            "Date": "={{$node[\"排除已發布文章\"].json.isoDate}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "6dabc3e5-ed8a-4801-976d-b1ba05277473",
+      "name": "記錄到 Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        960,
+        144
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "每天早上 9 點": {
+      "main": [
+        [
+          {
+            "node": "RSS 來源 1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS 來源 2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS 來源 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 來源 1": {
+      "main": [
+        [
+          {
+            "node": "過濾 24 小時內新文章",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 來源 2": {
+      "main": [
+        [
+          {
+            "node": "過濾 24 小時內新文章",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 來源 3": {
+      "main": [
+        [
+          {
+            "node": "過濾 24 小時內新文章",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "過濾 24 小時內新文章": {
+      "main": [
+        [
+          {
+            "node": "檢查 Google Sheets 是否重複",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "檢查 Google Sheets 是否重複": {
+      "main": [
+        [
+          {
+            "node": "排除已發布文章",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "排除已發布文章": {
+      "main": [
+        [
+          {
+            "node": "AI 改寫風格",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI 改寫風格": {
+      "main": [
+        [
+          {
+            "node": "發布到 Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "發布到 X (Twitter)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "記錄到 Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7f9a7a20-3946-457f-94a1-55b2f17901e5",
+  "meta": {
+    "instanceId": "c37d2f19611d1e645bb98c9ca12ef3934589f6f434bf6e744c0c6ffce6d92f58"
+  },
+  "id": "xqk4do2cqVGr80xy",
+  "tags": []
+}
