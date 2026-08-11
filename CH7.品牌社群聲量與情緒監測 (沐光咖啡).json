@@ -1,0 +1,216 @@
+{
+  "name": "品牌社群聲量與情緒監測 (沐光咖啡)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule",
+      "name": "每 30 分鐘",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "query": "沐光咖啡",
+        "limit": 50
+      },
+      "id": "node-twitter",
+      "name": "搜尋 X (Twitter)",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [250, 200]
+    },
+    {
+      "parameters": {
+        "resource": "post",
+        "operation": "search",
+        "query": "沐光咖啡",
+        "limit": 50
+      },
+      "id": "node-reddit",
+      "name": "搜尋 Reddit",
+      "type": "n8n-nodes-base.reddit",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "append"
+      },
+      "id": "node-merge",
+      "name": "合併貼文來源",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "你是一個專業的公關與社群監測 AI。請分析以下關於「沐光咖啡」的社群貼文。你必須嚴格以 JSON 格式回傳兩個欄位：\n1. \"sentiment\": 只能是 \"Positive\", \"Negative\" 或 \"Neutral\"。\n2. \"severity\": 評估該貼文的影響力或嚴重性，只能是 \"High\" (例如：食安問題、強烈客訴、公關危機) 或 \"Low\" (例如：一般抱怨、個人口味不合)。若情緒為正面或中性，請預設為 \"Low\"。\n\n貼文內容：\n{{ $json.text || $json.title }}"
+            }
+          ]
+        },
+        "jsonOutput": true
+      },
+      "id": "node-ai-sentiment",
+      "name": "AI 判斷情緒與嚴重度",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of $input.all()) {\n  try {\n    const aiResult = JSON.parse(item.json.message.content);\n    item.json.sentiment = aiResult.sentiment;\n    item.json.severity = aiResult.severity;\n  } catch (e) {\n    item.json.sentiment = 'Neutral';\n    item.json.severity = 'Low';\n  }\n}\nreturn $input.all();"
+      },
+      "id": "node-parse-json",
+      "name": "解析 AI JSON 結果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [950, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Source": "={{ $json.url ? 'Reddit' : 'X' }}",
+            "Content": "={{ $json.text || $json.title }}",
+            "Sentiment": "={{ $json.sentiment }}",
+            "Severity": "={{ $json.severity }}",
+            "URL": "={{ $json.url || 'https://twitter.com/i/web/status/' + $json.id }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "node-gs-log",
+      "name": "全部記錄到 Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1150, 100]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.sentiment + '_' + $json.severity }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "Negative_High",
+              "output": 0
+            },
+            {
+              "value2": "Negative_Low",
+              "output": 1
+            },
+            {
+              "operation": "contains",
+              "value2": "Positive",
+              "output": 2
+            }
+          ]
+        },
+        "fallbackOutput": 3
+      },
+      "id": "node-router",
+      "name": "依情緒與嚴重度分流",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1150, 400]
+    },
+    {
+      "parameters": {
+        "channel": "#urgent",
+        "text": "🚨 *【品牌危機警報】* 檢測到嚴重的負面貼文！\n主管 <@YOUR_MANAGER_ID> 請留意：\n\n*內容：* {{ $json.text || $json.title }}\n*來源連結：* {{ $json.url || 'https://twitter.com/i/web/status/' + $json.id }}"
+      },
+      "id": "node-slack-urgent",
+      "name": "Slack #urgent + @主管",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "channel": "#brand-watch",
+        "text": "⚠️ *【社群微詞】* 檢測到輕微的負面貼文，請持續觀察：\n\n*內容：* {{ $json.text || $json.title }}\n*來源連結：* {{ $json.url || 'https://twitter.com/i/web/status/' + $json.id }}"
+      },
+      "id": "node-slack-watch",
+      "name": "Slack #brand-watch",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "channel": "#good-news",
+        "text": "🎉 *【正面回饋】* 品牌獲得了好評！\n\n*內容：* {{ $json.text || $json.title }}\n*來源連結：* {{ $json.url || 'https://twitter.com/i/web/status/' + $json.id }}"
+      },
+      "id": "node-slack-good",
+      "name": "Slack #good-news",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [1450, 600]
+    }
+  ],
+  "connections": {
+    "每 30 分鐘": {
+      "main": [
+        [
+          { "node": "搜尋 X (Twitter)", "type": "main", "index": 0 },
+          { "node": "搜尋 Reddit", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "搜尋 X (Twitter)": {
+      "main": [ [ { "node": "合併貼文來源", "type": "main", "index": 0 } ] ]
+    },
+    "搜尋 Reddit": {
+      "main": [ [ { "node": "合併貼文來源", "type": "main", "index": 0 } ] ]
+    },
+    "合併貼文來源": {
+      "main": [ [ { "node": "AI 判斷情緒與嚴重度", "type": "main", "index": 0 } ] ]
+    },
+    "AI 判斷情緒與嚴重度": {
+      "main": [ [ { "node": "解析 AI JSON 結果", "type": "main", "index": 0 } ] ]
+    },
+    "解析 AI JSON 結果": {
+      "main": [
+        [
+          { "node": "全部記錄到 Google Sheets", "type": "main", "index": 0 },
+          { "node": "依情緒與嚴重度分流", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "依情緒與嚴重度分流": {
+      "main": [
+        [ { "node": "Slack #urgent + @主管", "type": "main", "index": 0 } ],
+        [ { "node": "Slack #brand-watch", "type": "main", "index": 0 } ],
+        [ { "node": "Slack #good-news", "type": "main", "index": 0 } ]
+      ]
+    }
+  }
+}
