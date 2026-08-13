@@ -1,0 +1,164 @@
+{
+  "name": "IT邦幫忙-資安資訊 (LINE版)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "49d06ab2-88c2-4aa8-b088-053e3b535832",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -704,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.ithome.com.tw/rss",
+        "options": {}
+      },
+      "id": "1219693a-e4e1-4e62-92ab-2ac7f11ff528",
+      "name": "RSS Read",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.title }}",
+              "operation": "contains",
+              "value2": "AI"
+            },
+            {
+              "value1": "={{ $json.title }}",
+              "operation": "contains",
+              "value2": "資安"
+            }
+          ]
+        }
+      },
+      "id": "9f432407-2ee4-4e1a-b0d0-47e5040e2451",
+      "name": "IF Keyword Filter",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer UkNP8n6D5+fcOvjq2HoSx9jRyhnl8GUNILZjADpYbtkkM9nyte/+01PEBzoOKnLkIU90F7aygNnIMfPKusI95+ZugCy88ZOh3IULXS+xVAMZNQ966Ws4asZQGb2rKWyHZ28pL56fHS3N0JeZ0WRfugdB04t89/1O/w1cDnyilFU="
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"你的_USER_ID_或_GROUP_ID\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"🔔 [重點追蹤] {{ $json.title }}\\n\\n🔗 閱讀全文：\\n{{ $json.link }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "d4b3ac11-a7e9-4332-9334-e2a53c58ed71",
+      "name": "LINE (重點通知)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "michael@gex.com.tw",
+        "subject": "=💡 [一般科技新聞] {{ $json.title }}",
+        "message": "=這是一篇未包含追蹤關鍵字的科技文章，提供給您參考：<br><br><b>標題：</b>{{ $json.title }}<br><b>連結：</b><a href=\"{{ $json.link }}\">{{ $json.link }}</a>",
+        "options": {}
+      },
+      "id": "0f6855bf-d7f4-44a1-82df-cc759e7e5b69",
+      "name": "Gmail (一般存檔)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        224
+      ],
+      "webhookId": "7fea4c44-aa77-47c2-b3b9-e9f63a035557",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "JxjSKGr3XU84UTmw",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "IF Keyword Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Keyword Filter": {
+      "main": [
+        [
+          {
+            "node": "LINE (重點通知)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail (一般存檔)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a1827e61-782b-4f9e-92fb-e20e3a9a2f71",
+  "meta": {
+    "instanceId": "c37d2f19611d1e645bb98c9ca12ef3934589f6f434bf6e744c0c6ffce6d92f58"
+  },
+  "id": "xjAedSWXdsv92KLf",
+  "tags": []
+}
