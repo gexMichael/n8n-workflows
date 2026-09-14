@@ -1,0 +1,237 @@
+{
+  "name": "CH8.B.FAQ 生成與匯出",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "bc9c757d-91fa-4850-8f47-a9c3868fd7b6",
+      "name": "手動觸發",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { topic: \"POS 前後台資料同步\" } },\n  { json: { topic: \"收銀台硬體異常與排除\" } },\n  { json: { topic: \"電子發票連線失敗\" } }\n];"
+      },
+      "id": "892551f0-786d-42ef-adaf-d46701566f46",
+      "name": "定義 FAQ 主題",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "query": "=請針對「{{ $json.topic }}」這個主題，從參考資料中整理出 3 個最常見的問題與解答（FAQ）。\n\n如果檢索到的資料不足以回答，請回覆「此主題目前無相關資料」。\n\n輸出格式請嚴格遵守：\n\n**主題：{{ $json.topic }}**\n\nQ1: [問題]\nA1: [解答]\n\nQ2: [問題]\nA2: [解答]\n\nQ3: [問題]\nA3: [解答]\n\n---\n",
+        "options": {}
+      },
+      "id": "f500b73f-400e-4567-af3b-057887ad5877",
+      "name": "AI 生成 FAQ (Question Answering Chain)",
+      "type": "@n8n/n8n-nodes-langchain.chainRetrievalQa",
+      "typeVersion": 1,
+      "position": [
+        256,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "df484436-2d03-4bca-bfec-634bc6d29221",
+      "name": "Gemini 1.5 Pro",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        256,
+        432
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7QYTnNRXX2K4MPBU",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "my-knowledge-base-3072",
+          "mode": "list",
+          "cachedResultName": "my-knowledge-base-3072"
+        },
+        "options": {}
+      },
+      "id": "ba2fbbb1-df1a-4528-927d-7b74e32acecc",
+      "name": "從 Qdrant 檢索",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1,
+      "position": [
+        448,
+        496
+      ],
+      "credentials": {
+        "qdrantApi": {
+          "id": "xRjHBLgn9A7iu9J7",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-2"
+      },
+      "id": "baf30db2-a861-4650-830a-190d07e2f754",
+      "name": "Gemini Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        448,
+        640
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7QYTnNRXX2K4MPBU",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "https://docs.google.com/document/d/10qAruCAoGDLiYrBAagdx-b6O1U6_pDlq1butUP3zjcU/edit?tab=t.0",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "{{ $json.text }"
+            }
+          ]
+        }
+      },
+      "id": "0883b55e-0bc8-49bc-addf-af7d1916c68f",
+      "name": "寫入 Google Docs",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        704,
+        208
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "p7Vx1nczpNyXm8RY",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.retrieverVectorStore",
+      "typeVersion": 1,
+      "position": [
+        432,
+        368
+      ],
+      "id": "2efb5276-f54a-4dd7-83b2-b04428b06039",
+      "name": "Vector Store Retriever"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "手動觸發": {
+      "main": [
+        [
+          {
+            "node": "定義 FAQ 主題",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "定義 FAQ 主題": {
+      "main": [
+        [
+          {
+            "node": "AI 生成 FAQ (Question Answering Chain)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI 生成 FAQ (Question Answering Chain)": {
+      "main": [
+        [
+          {
+            "node": "寫入 Google Docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 1.5 Pro": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI 生成 FAQ (Question Answering Chain)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "從 Qdrant 檢索",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "從 Qdrant 檢索": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Vector Store Retriever",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Store Retriever": {
+      "ai_retriever": [
+        [
+          {
+            "node": "AI 生成 FAQ (Question Answering Chain)",
+            "type": "ai_retriever",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "86338404-d72d-45bf-9b16-08ba45aab04b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c37d2f19611d1e645bb98c9ca12ef3934589f6f434bf6e744c0c6ffce6d92f58"
+  },
+  "id": "IdiPg0NiN4I44PgF",
+  "tags": []
+}

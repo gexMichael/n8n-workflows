@@ -1,0 +1,281 @@
+{
+  "name": "CH8.RAG in n8n (Gemini + Qdrant)",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Upload your data to test RAG",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Upload your file(s)",
+              "fieldType": "file",
+              "acceptFileTypes": ".pdf, .csv",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        192,
+        16
+      ],
+      "id": "e6067926-8eef-40f0-bdc5-b2f2e8f954cf",
+      "name": "Upload your file here",
+      "webhookId": "94b69d8f-696f-42f4-bba2-42f1a455d30a"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-2"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        848,
+        496
+      ],
+      "id": "d910c613-a324-4c7a-ac01-f3bd3354ca5a",
+      "name": "Gemini Embeddings",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7QYTnNRXX2K4MPBU",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        640,
+        176
+      ],
+      "id": "ee749279-80fd-43ed-b76a-2483a32f782c",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "content": "### 🚀 Load Data Flow",
+        "height": 460,
+        "width": 700,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        144,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "495d3420-0e7e-46e9-9b60-95583ca2e361",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "my-knowledge-base-3072",
+          "mode": "list",
+          "cachedResultName": "my-knowledge-base-3072"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1,
+      "position": [
+        384,
+        16
+      ],
+      "id": "65c0aef5-05f6-4c3e-aebc-48bd75fbfa33",
+      "name": "Insert Data to Qdrant",
+      "credentials": {
+        "qdrantApi": {
+          "id": "xRjHBLgn9A7iu9J7",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "knowledge_base",
+        "toolDescription": "Use this knowledge base to answer questions from the user",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "my-knowledge-base-3072",
+          "mode": "list",
+          "cachedResultName": "my-knowledge-base-3072"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        224
+      ],
+      "id": "3b011b48-b552-44a8-8524-9d2392747e97",
+      "name": "Query Qdrant Tool",
+      "credentials": {
+        "qdrantApi": {
+          "id": "xRjHBLgn9A7iu9J7",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        0
+      ],
+      "id": "616faed9-06a8-4654-b6ae-acec9d67b924",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "03d81281-6a9e-456b-a78c-e3ed38191bf0",
+      "name": "When chat message received",
+      "webhookId": "4d1f7dc1-15a1-4aa7-9762-ce68f82a0ac0"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        224
+      ],
+      "id": "13aacb45-53bb-49e8-9a91-81f7517a0dee",
+      "name": "Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7QYTnNRXX2K4MPBU",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### 💬 2. Retriever Flow",
+        "height": 460,
+        "width": 680,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        928,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "db35a0ae-893b-46f5-992b-efaa7edcb959",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Upload your file here": {
+      "main": [
+        [
+          {
+            "node": "Insert Data to Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Insert Data to Qdrant",
+            "type": "ai_embedding",
+            "index": 0
+          },
+          {
+            "node": "Query Qdrant Tool",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Insert Data to Qdrant",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Qdrant Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a17b7915-e00c-4353-a45d-55d68fe6209b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c37d2f19611d1e645bb98c9ca12ef3934589f6f434bf6e744c0c6ffce6d92f58"
+  },
+  "id": "8xmJjiGRT5h9LIF7",
+  "tags": []
+}

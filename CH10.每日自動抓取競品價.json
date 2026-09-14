@@ -1,0 +1,383 @@
+{
+  "name": "CH10.每日自動抓取競品價",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -3600,
+        -16
+      ],
+      "id": "54ea34ce-8acc-46dc-8aa9-540859837e57"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    \"store\": \"Moonshine Coffee Roasters\",\n    \"url\": \"https://moonshinecoffeeroasters.com/products/巴拿馬-los-cenizos-lot-175-藝妓-低溫日曬-panama-los-cenizos-lot-175-geisha-cold-fermentation-natural.json\"\n  },\n  {\n    \"store\": \"REC COFFEE\",\n    \"url\": \"https://rec-coffee.com/products/decaf-coffee-bag-pastry-gift.json\"\n  },\n  {\n    \"store\": \"Goodman Roaster\",\n    \"url\": \"https://goodmanroaster.tw/products/ethiopia-red-honey.json\"\n  }\n];"
+      },
+      "name": "Define Target URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3392,
+        -16
+      ],
+      "id": "3ba70a7a-e186-4196-a009-5ab268adb38d"
+    },
+    {
+      "parameters": {
+        "url": "={{ encodeURI($json.url) }}",
+        "options": {}
+      },
+      "name": "Fetch Shopify JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -3200,
+        -16
+      ],
+      "id": "aa74667f-4886-4844-a682-4e715609378a"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const product = item.json.product;\n  \n  const productName = product.title;\n  const currentPrice = parseFloat(product.variants[0].price);\n\n  return {\n    json: {\n      store: product.vendor,\n      product: productName,\n      current_price: currentPrice\n    }\n  };\n});"
+      },
+      "name": "Extract Price",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2992,
+        -16
+      ],
+      "id": "baa099cb-caa0-418f-bfc6-1338e02b85de"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  '{{ $json.store }}' as store,\n  '{{ $json.product }}' as product,\n  {{ $json.current_price }} as current_price,\n  (\n    SELECT price FROM competitor_prices \n    WHERE store = '{{ $json.store }}' AND product = '{{ $json.product }}' \n    AND date = CURDATE() - INTERVAL 1 DAY \n    LIMIT 1\n  ) as yesterday_price;",
+        "options": {}
+      },
+      "name": "MariaDB: Get Yesterday",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.2,
+      "position": [
+        -2800,
+        -16
+      ],
+      "id": "e50b3b9d-943f-4c60-95ed-2a301cbe0057",
+      "credentials": {
+        "mySql": {
+          "id": "NwRL3dJ68F2mNQfe",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const currentPrice = item.json.current_price;\n  const yesterdayPrice = item.json.yesterday_price || currentPrice;\n  \n  const diffAmount = currentPrice - yesterdayPrice;\n  const diffPercent = yesterdayPrice !== 0 ? (diffAmount / yesterdayPrice) * 100 : 0;\n  const isAlert = Math.abs(diffPercent) > 5;\n  \n  results.push({\n    json: {\n      store: item.json.store,\n      product: item.json.product,\n      current_price: currentPrice,\n      yesterday_price: yesterdayPrice,\n      diff_amount: diffAmount,\n      diff_percent: parseFloat(diffPercent.toFixed(2)),\n      is_alert: isAlert\n    }\n  });\n}\nreturn results;"
+      },
+      "name": "Calculate Fluctuation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2592,
+        -16
+      ],
+      "id": "6e5ff714-8d61-4a9a-9946-d336eb08347c"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO competitor_prices (store, product, price, date) \nVALUES ('{{ $json.store }}', '{{ $json.product }}', {{ $json.current_price }}, CURDATE());",
+        "options": {}
+      },
+      "name": "MariaDB: Insert Today",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.2,
+      "position": [
+        -2400,
+        -16
+      ],
+      "id": "33d55aee-5ce6-4e72-b620-6a9fda559326",
+      "credentials": {
+        "mySql": {
+          "id": "NwRL3dJ68F2mNQfe",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.is_alert }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "IF: Fluctuation > 5%",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -2192,
+        -112
+      ],
+      "id": "6b96d674-a556-4c27-acd7-5b03c6b1acd5"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_CHAT_ID",
+        "text": "={{ $json.store }} 的 {{ $json.product }} 價格異動告警！⚠️\n\n昨日價格：${{ $json.yesterday_price }}\n今日價格：${{ $json.current_price }}\n漲跌金額：{{ $json.diff_amount > 0 ? '+' : '' }}{{ $json.diff_amount }}\n漲跌幅：{{ $json.diff_percent > 0 ? '+' : '' }}{{ $json.diff_percent }}%",
+        "additionalFields": {}
+      },
+      "name": "Telegram: Price Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -2000,
+        -112
+      ],
+      "id": "6a175cee-0db6-42b5-a260-bef839ee6125",
+      "webhookId": "6c3bfd0e-2d5b-490d-a7bf-c8171f3cfa83",
+      "credentials": {
+        "telegramApi": {
+          "id": "wbDjf4z34yHQ6hhL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $now.weekday }}",
+              "operation": "equal",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "name": "IF: Is Monday?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -2192,
+        144
+      ],
+      "executeOnce": true,
+      "id": "7ecb3aa7-1e5b-4cb1-b927-9fc7e0ce6112"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT store, product, AVG(price) as avg_price \nFROM competitor_prices \nWHERE date >= CURDATE() - INTERVAL 7 DAY \nGROUP BY store, product;",
+        "options": {}
+      },
+      "name": "MariaDB: Weekly Data",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.2,
+      "position": [
+        -2000,
+        144
+      ],
+      "id": "21c3164f-92de-48a0-8aed-27ec9d15c99d",
+      "credentials": {
+        "mySql": {
+          "id": "NwRL3dJ68F2mNQfe",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet reportText = \"📊 **本週競品價格趨勢報告**\\n\\n\";\n\nitems.forEach(item => {\n  reportText += `- ${item.json.store} (${item.json.product}): 平均 $${parseFloat(item.json.avg_price).toFixed(2)}\\n`;\n});\n\nreturn [{ json: { report: reportText } }];"
+      },
+      "name": "Format Weekly Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1792,
+        144
+      ],
+      "id": "3001a405-4221-4a68-bf35-ac85669fe564"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_CHAT_ID",
+        "text": "={{ $json.report }}",
+        "additionalFields": {}
+      },
+      "name": "Telegram: Weekly Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -1600,
+        144
+      ],
+      "id": "64670e22-7aec-4791-90d3-5afb85f7b305",
+      "webhookId": "009d7209-ad63-4d5e-b136-38db9e720da3",
+      "credentials": {
+        "telegramApi": {
+          "id": "wbDjf4z34yHQ6hhL",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Define Target URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Define Target URLs": {
+      "main": [
+        [
+          {
+            "node": "Fetch Shopify JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Shopify JSON": {
+      "main": [
+        [
+          {
+            "node": "Extract Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Price": {
+      "main": [
+        [
+          {
+            "node": "MariaDB: Get Yesterday",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MariaDB: Get Yesterday": {
+      "main": [
+        [
+          {
+            "node": "Calculate Fluctuation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Fluctuation": {
+      "main": [
+        [
+          {
+            "node": "MariaDB: Insert Today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MariaDB: Insert Today": {
+      "main": [
+        [
+          {
+            "node": "IF: Fluctuation > 5%",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IF: Is Monday?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Fluctuation > 5%": {
+      "main": [
+        [
+          {
+            "node": "Telegram: Price Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Is Monday?": {
+      "main": [
+        [
+          {
+            "node": "MariaDB: Weekly Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MariaDB: Weekly Data": {
+      "main": [
+        [
+          {
+            "node": "Format Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Weekly Report": {
+      "main": [
+        [
+          {
+            "node": "Telegram: Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "74bb3c00-d146-4a9a-835d-141bf93fbcc6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ca279ee05dd4b1b3d38946ccf886bf27555e47aa0af938f6b0d8465a7df4a434"
+  },
+  "nodeGroups": [],
+  "id": "2z40J1IWv0iCYaaC",
+  "tags": []
+}

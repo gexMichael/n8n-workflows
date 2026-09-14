@@ -1,0 +1,313 @@
+{
+  "name": "CH09.表單 → CRM 自動建單 → 分配業務",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "217549c6-fa64-4563-9b7a-987ce355e9b5",
+        "formTitle": "企業合作洽詢 (ERPNext 整合版)",
+        "formDescription": "請留下您的需求資訊，顧問將盡快與您聯繫。",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "姓名",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "公司名稱",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "所在地區 (北/中/南)",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "所屬產業"
+            },
+            {
+              "fieldLabel": "需求簡述",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "表單提交 (n8n Form)",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        272
+      ],
+      "id": "c0332a0b-f089-48bd-94ad-8f4e41b7f8ba",
+      "webhookId": "217549c6-fa64-4563-9b7a-987ce355e9b5"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json;\nconst region = data.Region || '';\nconst industry = data.Industry || '';\n\n// 預設業務設定 (請改為 ERPNext 內對應的使用者 Email / User ID)\nlet salesName = '系統預設業務';\nlet salesEmail = 'genie.michael@gmail.com';\nlet salesSlackId = '@genie.michael';\n\n/* Debug, 先統一寄送 mail\nif (region.includes('北') && industry.includes('科技')) {\n  salesName = 'Alice';\n  salesEmail = 'alice@yourdomain.com';\n  salesSlackId = '@alice_slack';\n} else if (region.includes('南')) {\n  salesName = 'Bob';\n  salesEmail = 'bob@yourdomain.com';\n  salesSlackId = '@bob_slack';\n}\n*/\n\ndata.salesName = salesName;\ndata.salesEmail = salesEmail;\ndata.salesSlackId = salesSlackId;\n\nreturn data;"
+      },
+      "name": "整理資料 & 分配業務",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        272
+      ],
+      "id": "6603e2e7-a70b-4c08-bd6b-50e4321d7303"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erpnext.gex.com.tw/api/resource/Lead",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "token 3c2ec67ce055ea3:b492efdef6bfe62"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_name\": \"{{ $json.姓名 }}\",\n  \"email_id\": \"{{ $json.Email }}\",\n  \"company_name\": \"{{ $json.公司名稱 }}\",\n  \"territory\": \"Taiwan\",\n  \"lead_owner\": \"{{ $json.salesEmail }}\",\n  \"notes\": [{\"note\": \"{{ $json.需求簡述 }}\"}]\n}",
+        "options": {}
+      },
+      "name": "ERPNext 建立 Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1696,
+        272
+      ],
+      "id": "b54222a4-ca56-4f5f-ba76-5f48f10654fb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erpnext.gex.com.tw/api/resource/Opportunity",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "token 3c2ec67ce055ea3:b492efdef6bfe62"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"opportunity_from\": \"Lead\",\n  \"party_name\": \"{{ $json.data.name }}\",\n  \"opportunity_type\": \"Sales\",\n  \"opportunity_owner\": \"{{ $('整理資料 & 分配業務').item.json.salesEmail }}\",\n  \"status\": \"Open\",\n  \"description\": \"{{ $('整理資料 & 分配業務').item.json.需求簡述 }}\"\n}",
+        "options": {}
+      },
+      "name": "ERPNext 建立 Opportunity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        272
+      ],
+      "id": "aed7c913-2e16-4ea2-88d1-bf386cc30499"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BQDPBNR6G",
+          "mode": "list",
+          "cachedResultName": "erpnext"
+        },
+        "text": "=🚀 *【ERPNext】收到新客戶需求！*\n\n*負責業務*：{{ $('整理資料 & 分配業務').item.json.salesSlackId }}\n*公司名稱*：{{ $('整理資料 & 分配業務').item.json.Company }}\n*聯絡人*：{{ $('整理資料 & 分配業務').item.json.Name }} ({{ $('整理資料 & 分配業務').item.json.Email }})\n*地區 / 產業*：{{ $('整理資料 & 分配業務').item.json.Region }} / {{ $('整理資料 & 分配業務').item.json.Industry }}\n*ERPNext 商機編號*：{{ $json.data.name }}\n*需求描述*：\n{{ $('整理資料 & 分配業務').item.json.Needs }}",
+        "otherOptions": {}
+      },
+      "name": "Slack 通知",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        2128,
+        272
+      ],
+      "id": "4caa67bb-ca73-451d-af34-ddbd0e3826e6",
+      "webhookId": "089dcfb7-087b-4983-bf5a-db2219693e49",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "m1rkgyEfF6DxTV9u",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1p6-K_1Csmyq5hcQpkyw_jtiVuN35Ay4E7Q75KKlDtEE/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "工作表1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "name": "Google Sheets 備份",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        2576,
+        272
+      ],
+      "id": "39485ece-2c8b-43c7-98d5-af5d911caf50",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "tIyRzCFbhs40pGQu",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "kylinsys@gmail.com",
+        "toEmail": "genie.michael@gmail.com",
+        "subject": "test",
+        "html": "test",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2336,
+        272
+      ],
+      "id": "1c844dce-2db1-4ee1-b4fa-936a347f6faf",
+      "name": "Send an Email",
+      "webhookId": "f3435657-8c41-458e-b960-1f4b4ae3a834",
+      "credentials": {
+        "smtp": {
+          "id": "wo3idruRDDTCrmCR",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Google Sheets 備份": [
+      {
+        "json": {
+          "name": "First item",
+          "code": 1
+        }
+      },
+      {
+        "json": {
+          "name": "Second item",
+          "code": 2
+        }
+      }
+    ]
+  },
+  "connections": {
+    "表單提交 (n8n Form)": {
+      "main": [
+        [
+          {
+            "node": "整理資料 & 分配業務",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "整理資料 & 分配業務": {
+      "main": [
+        [
+          {
+            "node": "ERPNext 建立 Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERPNext 建立 Lead": {
+      "main": [
+        [
+          {
+            "node": "ERPNext 建立 Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERPNext 建立 Opportunity": {
+      "main": [
+        [
+          {
+            "node": "Slack 通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack 通知": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send an Email": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets 備份",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "eca2985f-a8d2-4675-922a-f7a8d30960ac",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ca279ee05dd4b1b3d38946ccf886bf27555e47aa0af938f6b0d8465a7df4a434"
+  },
+  "nodeGroups": [],
+  "id": "vqZocMyitqYCteat",
+  "tags": []
+}
